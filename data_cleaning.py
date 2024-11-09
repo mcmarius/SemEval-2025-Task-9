@@ -1,8 +1,10 @@
 import csv
+import json
 
 # import evaluate
 import requests
 import tqdm
+# import unidecode
 
 seed = 42
 
@@ -54,6 +56,7 @@ def process_request(req_data, num_errors):
         try:
             raw_response = json.loads(req.text)
             raw_content = raw_response['choices'][0]["message"]["content"]
+            print(f"From json: {raw_content}")
             return raw_content
             # content = json.loads(raw_content)
             # food = raw_content
@@ -65,8 +68,17 @@ def process_request(req_data, num_errors):
             # out_row = row[0:6] + row[7:11]
             # out_row += [food] #, hazard]
             # out_entries.append(out_row)
-        except (json.decoder.JSONDecodeError, ValueError):
+        except (json.decoder.JSONDecodeError,):
+            # aaa = bytes(req.text, encoding='utf8')
             # print(f"[DEBUG] Response: {req.text}")
+            lines = req.text.split("\n")
+            relevant_line = ""
+            for line in lines:
+                if "content" in line:
+                    relevant_line = line.split('": "')[1].split('",')[0]
+                    break
+            # print(f"Manual parse: {relevant_line}")
+            return relevant_line
             num_errors += 1
             if num_errors % 100 == 0:
                 print("[DEBUG] reached 100 errors")
@@ -82,7 +94,7 @@ def main_eval_loop(file_name):
     num_errors = 0
     print("data loaded")
     for i, row in enumerate(tqdm.tqdm(entries)):
-        # if i < 97:
+        # if i < 45:
         #     continue
         clean_text = make_clean_text(row[6])
         prompt = make_food_prompt(clean_text)
