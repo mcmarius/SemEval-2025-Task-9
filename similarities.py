@@ -73,11 +73,22 @@ def process_entries(model, entries, gold_key, eval_key, have_labels=True):
     num_wrong = 0
     preds = []
     golds = []
+    probs = []
     for i, extracted_entry in enumerate(tqdm.tqdm(extracted_label_embeddings)):
         max_similarity = 0
         predicted_label = None
         matr = cos_sim(torch.tensor(extracted_entry).unsqueeze(0), torch.tensor(gold_label_embeddings))
         sims, sim_ind = torch.max(matr, dim=0)
+        tops, tops_ind = torch.topk(matr, 10, dim=0)
+        # print(sims)
+        # print(tops)
+        # # print(tops_ind)
+        # print(f'text: {extracted_entries[i]}')
+        # print(f'true label: {entries[i][gold_key]}')
+        probs_text = ", ".join([f"{id2label[int(x)]} ({round(float(tops[i]), 5)})" for i, x in enumerate(tops_ind)])
+        # print(f'predicted labels: {probs_text}')
+        probs.append(probs_text)
+        # exit(0)
         if have_labels:
             if id2label[int(sim_ind)] == entries[i][gold_key]:
                 num_correct += 1
@@ -91,7 +102,7 @@ def process_entries(model, entries, gold_key, eval_key, have_labels=True):
     #     # if i > 50:
     #     #     break
     print(f'correct: {num_correct}; wrong: {num_wrong}')
-    return np.array(preds), np.array(golds), id2label
+    return np.array(preds), np.array(golds), id2label, probs
 
 
 
@@ -106,10 +117,11 @@ def main(have_gold_labels=True):
     # hazard_model_name = 'sentence-transformers/paraphrase-MiniLM-L12-v2'
     # hazard_model_name = 'thenlper/gte-large'
     # product_model_name = 'thenlper/gte-small'
-    # product_model_name = 'thenlper/gte-base'
+    product_model_name = 'thenlper/gte-base'
     product_model_name = 'thenlper/gte-large'
     # product_model_name = 'trained_models/cosent-lr2-w2-pos4-neutr1-neg1-1epoch-product-base'
-    # product_model_name = 'trained_models/angloss-lr2-w2-pos4-neutr1-neg1-1epoch-product-base'
+    # product_model_name = 'trained_models/cosent-3sample-minority-lr2-w2-pos2-neutr1-neg1-1epoch-product-base'
+    # product_model_name = 'trained_models/angloss-lr2-w2-pos2-neutr1-neg1-1epoch-product-base'
     # product_model_name = 'sentence-transformers/paraphrase-MiniLM-L12-v2'
     # model_name = 'kamalkraj/BioSimCSE-BioLinkBERT-BASE'
     model_name2 = hazard_model_name.replace('/', '_')
@@ -120,12 +132,14 @@ def main(have_gold_labels=True):
     # file_name = 'parsed_data.csv'
     # hazard_file_name = 'parsed_data_prompt_h10_f10-q4-k-m.csv'
     # hazard_file_name = 'parsed_data_prompt_h14.csv'
-    # hazard_file_name = 'parsed_data_f24_h17.csv'
-    hazard_file_name = 'parsed_data_f24_h17_validation.csv'
+    hazard_file_name = 'parsed_data_f24_h17.csv'
+    # hazard_file_name = 'parsed_data_f25_h18.csv'
+    # hazard_file_name = 'parsed_data_f24_h17_validation.csv'
     # hazard_file_name = 'parsed_data_f23_h16_first1.csv'
     # hazard_file_name = 'parsed_data_validation_h14_f10_q6.csv'
     hazard_entries = read_clean_file(hazard_file_name)
     product_file_name = hazard_file_name
+    product_file_name = 'parsed_data_f25_h18.csv'
     # product_file_name = 'parsed_data_prompt_h10_f10-q4-k-m.csv'
     # product_file_name = 'parsed_data_prompt_f10.csv'
     # product_file_name = 'parsed_data_validation_h14_f10_q6.csv'
@@ -133,12 +147,13 @@ def main(have_gold_labels=True):
     if 'validation' in hazard_file_name or 'validation' in product_file_name:
         have_gold_labels = False
     # hazard_pred, hazard_gold = process_entries(model, hazard_entries, 'hazard-category', 'extracted_hazard')
-    # product_pred, product_gold = process_entries(model, product_entries, 'product-category', 'extracted_food')
+    # product_pred, product_gold = process_entries(model, product_entries, 'product-category', 'extracted_product')
     # hazard_pred, hazard_gold = process_entries(model, entries, 'hazard-category', 'title')
     # product_pred, product_gold = process_entries(model, entries, 'product-category', 'title')
     # print(f'f1 category: {compute_score(hazard_gold, product_gold, hazard_pred, product_pred)}')
     hazard_exist = False
-    if os.path.isfile(f'results/{model_name2}/hazard_{hazard_file_name}'):
+    use_cache = False
+    if os.path.isfile(f'results/{model_name2}/hazard_{hazard_file_name}') and use_cache:
         hazard_exist = True
         hazard_pred = []
         hazard_pred_text = []
@@ -155,20 +170,20 @@ def main(have_gold_labels=True):
         hazard_gold = np.array(hazard_gold)
     else:
         model = SentenceTransformer(hazard_model_name)
-        hazard_pred, hazard_gold, id2label = process_entries(model, hazard_entries, 'hazard', 'extracted_hazard', have_labels=have_gold_labels)
+        hazard_pred, hazard_gold, id2label, probs = process_entries(model, hazard_entries, 'hazard', 'extracted_hazard', have_labels=have_gold_labels)
         hazard_pred_text = [id2label[pred] for pred in hazard_pred]
         hazard_gold_text = [id2label[pred] for pred in hazard_gold]
         with open(f'results/{model_name2}/hazard_{hazard_file_name}', 'w', newline='') as csvfile:
-            fieldnames = ['hazard-gold', 'hazard-pred', 'hazard-gold-text', 'hazard-pred-text']
+            fieldnames = ['hazard-gold', 'hazard-pred', 'hazard-gold-text', 'hazard-pred-text', 'probs']
             writer = csv.DictWriter(csvfile, fieldnames=fieldnames, delimiter=',', quotechar='"')
             writer.writeheader()
             for i in range(len(hazard_pred)):
                 writer.writerow({
                     'hazard-gold': hazard_gold[i], 'hazard-pred': hazard_pred[i],
-                    'hazard-gold-text': hazard_gold_text[i], 'hazard-pred-text': hazard_pred_text[i]
+                    'hazard-gold-text': hazard_gold_text[i], 'hazard-pred-text': hazard_pred_text[i], 'probs': probs[i]
                 })
     product_exist = False
-    if os.path.isfile(f'results/{model_name2}/product_{product_file_name}'):
+    if os.path.isfile(f'results/{model_name2}/product_{product_file_name}') and use_cache:
         product_exist = True
         product_pred = []
         product_pred_text = []
@@ -185,17 +200,17 @@ def main(have_gold_labels=True):
         product_gold = np.array(product_gold)
     else:
         model = SentenceTransformer(product_model_name)
-        product_pred, product_gold, id2label = process_entries(model, product_entries, 'product', 'extracted_food', have_labels=have_gold_labels)
+        product_pred, product_gold, id2label, probs = process_entries(model, product_entries, 'product', 'extracted_product', have_labels=have_gold_labels)
         product_pred_text = [id2label[pred] for pred in product_pred]
         product_gold_text = [id2label[pred] for pred in product_gold]
         with open(f'results/{model_name2}/product_{product_file_name}', 'w', newline='') as csvfile:
-            fieldnames = ['product-gold', 'product-pred', 'product-gold-text', 'product-pred-text']
+            fieldnames = ['product-gold', 'product-pred', 'product-gold-text', 'product-pred-text', 'probs']
             writer = csv.DictWriter(csvfile, fieldnames=fieldnames, delimiter=',', quotechar='"')
             writer.writeheader()
             for i in range(len(product_pred)):
                 writer.writerow({
                     'product-gold': product_gold[i], 'product-pred': product_pred[i],
-                    'product-gold-text': product_gold_text[i], 'product-pred-text': product_pred_text[i]
+                    'product-gold-text': product_gold_text[i], 'product-pred-text': product_pred_text[i], 'probs': probs[i]
                 })
 
     submission_file_name = hazard_file_name

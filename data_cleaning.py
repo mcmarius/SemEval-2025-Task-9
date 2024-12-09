@@ -32,8 +32,9 @@ def make_clean_text(text):
             if matches:
                 clean_rows.append(matches[0])
         else:
-            clean_rows.append(row)
-    return "\n".join(clean_rows)
+            if re.findall(r'[A-Z][a-z]+', row):
+                clean_rows.append(row)
+    return "\n".join(list(set(clean_rows)))
 
 def make_food_prompt(example, title=""):
     # prompt = f'Given the following text, extract the name of the food product. If the name of the food product is not specifically mentioned, respond with "missing". The text: "{example}". Format the answer as follows and do not include anything else: Product: <product>'
@@ -54,6 +55,8 @@ def make_food_prompt(example, title=""):
     prompt = f"Text: {title}. {example}.\nExtract all mentions of commercial products, food, beverages, or supplements as a comma-separated list. Respond only with the verbatim items separated by comma, ordered from the most specific to generic. Do not include any other text." # prompt 23
 
     prompt = f"Article: {title}\n{example}.\n\nYou are given an article about food-incident reports. Your task is to find what product is described and extract it as it is found in the text, followed by a brief description. Do not include any numbers. Respond in the following format and do not respond with anything else:\n<product>. <product description>.<end of your response>" # prompt 24
+    prompt = f"Title: {title}\nArticle: {example}.\n\nYou are given an article about food-incident reports. Your task is to find what products are described and extract them as they are found in the text, followed by a brief description for each product. Do not include any numbers. Write the product in the title: <product in title>. Then, for each product, respond in the following format: <product>. <product dictionary definition>.<end of your response>. Do not respond with anything else." # prompt 25
+    #     meaning in 10 words max
     return prompt
 
 def make_hazard_prompt(example, title=""):
@@ -67,6 +70,7 @@ def make_hazard_prompt(example, title=""):
     prompt = f"Text: {title}. {example}.\nExtract all mentions of hazards or problems related to commercial products, food or health as a comma-separated list. Respond only with the verbatim items separated by comma, ordered from most specific to generic. Do not include any other text." # prompt 16
 
     prompt = f"Article: {title}\n{example}.\n\nYou are given an article about food-incident reports. Your task is to extract the problem(s) with the product as briefly as possible, preserving the words in the article. Do not include any numbers. Respond in the following format and do not respond with anything else:\n<problem>. <problem description>.<end of your response>" # prompt 17
+    prompt = f"Article: {title}\n{example}.\n\nYou are given an article about food-incident reports. Your task is to extract the problem(s) description(s) with the product as briefly as possible, preserving the words in the article. Do not include any numbers. Respond in the following format and do not respond with anything else:\n<problem description><: details if present>.<end of your response>" # prompt 18
     return prompt
 
 
@@ -142,16 +146,18 @@ def main_eval_loop(file_name, include_product=True, include_hazard=True, add_tit
     header, entries = read_file(file_name)
     out_header = header[0:6] + header[7:11]
     if include_product or common_prompt:
-        out_header += ['extracted_food']
+        out_header += ['extracted_product']
     if include_hazard or common_prompt:
         out_header += ['extracted_hazard']
     out_entries = []
     num_errors = 0
     response = ""
+    food = ""
+    hazard = ""
     print("data loaded")
     try:
         for i, row in enumerate(tqdm.tqdm(entries)):
-            # if i < 1185:
+            # if i < 2109:
             #     continue
             clean_text = make_clean_text(row[6])
             title = row[5]
@@ -161,13 +167,16 @@ def main_eval_loop(file_name, include_product=True, include_hazard=True, add_tit
             # print(f"made prompt with {clean_text}")
             if include_product:
                 prompt = make_food_prompt(clean_text, title)
+                # print(f"food prompt: {prompt}")
                 req_data = make_request(prompt)
                 food, err = process_request(req_data)
                 if err:
                     num_errors += 1
+                food = food.replace('**', '')
                 out_row += [food]
             if include_hazard:
                 prompt = make_hazard_prompt(clean_text, title)
+                # print(f"hazard prompt: {prompt}")
                 req_data = make_request(prompt)
                 hazard, err = process_request(req_data)
                 if err:
@@ -187,17 +196,20 @@ def main_eval_loop(file_name, include_product=True, include_hazard=True, add_tit
             # print(f"got food: {food}\ngot hazard: {hazard}")
 
             out_entries.append(out_row)
-            # if i > 100:
+            # if i > 15:
             #     break
 
     finally:
         # print(f"Response: {response}")
+        print(f"got food: {food}\ngot hazard: {hazard}")
         print(f"Total errors: {num_errors}")
+        # return
         # out_file = 'parsed_data_f21.csv'
         # out_file = 'parsed_data_f10.csv'
         out_file = 'parsed_data_f23_h16.csv'
-        # out_file = 'parsed_data_f24_h17.csv'
-        out_file = 'parsed_data_f24_h17_validation.csv'
+        out_file = 'parsed_data_f24_h17.csv'
+        out_file = 'parsed_data_f25_h18.csv'
+        # out_file = 'parsed_data_f24_h17_validation.csv'
         # out_file = 'parsed_data_c2.csv'
         # out_file = 'parsed_data_h14.csv'
         # out_file = 'parsed_data_validation_h14_f10_q6.csv'
@@ -210,8 +222,8 @@ def main_eval_loop(file_name, include_product=True, include_hazard=True, add_tit
 
 if __name__ == "__main__":
     # main_eval_loop('data/incidents_train.csv', include_hazard=False, add_title=True)
-    # main_eval_loop('data/incidents_train.csv', add_title=False)
+    main_eval_loop('data/incidents_train.csv', add_title=False)
     # main_eval_loop('data/incidents_train.csv', include_product=False, include_hazard=False, common_prompt=True)
     # main_eval_loop('data/incidents_train.csv', include_hazard=False, add_title=False)
     # main_eval_loop('data/incidents_train.csv', include_product=False, add_title=False)
-    main_eval_loop('data/incidents_validation.csv', add_title=False)
+    # main_eval_loop('data/incidents_validation.csv', add_title=False)
