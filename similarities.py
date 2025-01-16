@@ -83,24 +83,13 @@ def process_entries(model, entries, gold_key, eval_key, have_labels=True, use_le
         gold_labels_file = f'data/{gold_key}{label_set}_labels.csv'
     else:
         gold_labels_file = f'data/{gold_key}_labels.csv'
-    if have_labels:
-    # else:
-        gold_labels = list(set(entry[gold_key] for entry in entries))
-        label2id = {gold_labels[k]: k for k in range(len(gold_labels))}
-        if not os.path.isfile(gold_labels_file):
-            with open(gold_labels_file, 'w', newline='') as csvfile:
-                fieldnames = [gold_key, 'id']
-                writer = csv.DictWriter(csvfile, fieldnames=fieldnames, delimiter=',', quotechar='"')
-                writer.writeheader()
-                for line in gold_labels:
-                    writer.writerow({gold_key: line, 'id': label2id[line]})
     with open(gold_labels_file) as csvfile:
         reader = csv.DictReader(csvfile, delimiter=',', quotechar='"')
         gold_labels = []
-        label2id = {}
+        # label2id = {}
         for row in reader:
             gold_labels.append(row[gold_key])
-            label2id[row[gold_key]] = row['id']
+            # label2id[row[gold_key]] = row['id']
     label2id = {gold_labels[k]: k for k in range(len(gold_labels))}
     id2label = {k: gold_labels[k] for k in range(len(gold_labels))}
     parsed_entries = process_missing_entries(entries, eval_key)
@@ -110,13 +99,16 @@ def process_entries(model, entries, gold_key, eval_key, have_labels=True, use_le
     mappings_data_file = 'data/incidents_train.csv'
     if label_set == 'valid':
         mappings_data_file = 'data/incidents_valid.csv'
+    elif label_set == 'train_valid':
+        mappings_data_file = 'data/incidents_train_valid.csv'
     cat2all, all2cat = get_category_mappings(gold_key, mappings_data_file)
     if use_lemmatization:
         cat2all = {k: [" ".join(lemmatize(word, lang='en', greedy=True) for word in labels.split(" ") if word) for labels in cat2all[k]] for k in cat2all}
     all_categories = list(cat2all.keys())
     id2label_cat = {k: all_categories[k] for k in range(len(all_categories))}
     ##############
-    if reorder_labels_cat or reorder_labels:
+    # if reorder_labels_cat or reorder_labels:
+    if reorder_labels:
         if gold_key == 'product':
             # Order the following product categories from most specific to more general. Repsond only with a python list, lowercase, no explanations.
             # adjusted to move "other" as last element
@@ -137,8 +129,8 @@ def process_entries(model, entries, gold_key, eval_key, have_labels=True, use_le
         if have_labels:
             raw_data = read_clean_file('data/incidents_train.csv')
         else:
-            raw_data = read_clean_file('data/incidents_validation.csv')
-            # raw_data = read_clean_file('data/incidents_test.csv')
+            # raw_data = read_clean_file('data/incidents_validation.csv')
+            raw_data = read_clean_file('data/incidents_test.csv')
         if reorder_labels == 'reorder_':
             with open(f'data/{gold_key}{label_set}_labels_sorted_reverse.txt') as label_file:
                 # ordered_labels = {label.strip(): i for i, label in enumerate(label_file.readlines())}
@@ -227,6 +219,8 @@ def process_entries(model, entries, gold_key, eval_key, have_labels=True, use_le
     preds = []
     golds = []
     probs = []
+    preds_text = []
+    golds_text = []
     debug_print = False
     for i, extracted_entry in enumerate(tqdm.tqdm(extracted_label_embeddings)):
         if debug_print:
@@ -443,6 +437,7 @@ def process_entries(model, entries, gold_key, eval_key, have_labels=True, use_le
             if i > 5:
                 exit(0)
         probs.append(probs_text)
+        preds_text.append(predicted_label)
         # exit(0)
         if have_labels:
             if id2label[int(sim_ind)] == entries[i][gold_key]:
@@ -454,13 +449,18 @@ def process_entries(model, entries, gold_key, eval_key, have_labels=True, use_le
         # else:
         preds.append(int(sim_ind))
         if have_labels:
-            golds.append(label2id[entries[i][gold_key]])
+            if label2id.get(entries[i][gold_key]):
+                golds.append(label2id[entries[i][gold_key]])
+            else:
+                golds.append(0) # irrelevant since we do not use this; kept for legacy for now
+            golds_text.append(entries[i][gold_key])
         else:
             golds.append(0)
+            golds_text.append('missing')
         # if i > 50:
         #     break
     print(f'correct: {num_correct}; wrong: {num_wrong}')
-    return np.array(preds), np.array(golds), id2label, probs
+    return np.array(preds), golds, id2label, probs, golds_text, preds_text
 
 
 
@@ -499,6 +499,8 @@ def main(have_gold_labels=True):
     hazard_file_name = 'parsed_data_h25_2_ollama_regex_more_words.csv'
     hazard_file_name = 'parsed_data_h25_4_ollama_regex.csv'
     hazard_file_name = 'parsed_data_h25_4_ollama_regex_valid.csv'
+    hazard_file_name = 'parsed_data_h25_ollama_regex_valid_v4.csv'
+    hazard_file_name = 'parsed_data_h25_ollama_regex_test.csv'
     # hazard_file_name = 'parsed_data_h29_ollama_regex_more_words.csv'
     # hazard_file_name = 'parsed_data_h25_validation.csv'
     # hazard_file_name = 'parsed_data_f25_h18.csv'
@@ -510,7 +512,10 @@ def main(have_gold_labels=True):
     # product_file_name = 'parsed_data_f24_h17.csv'
     # product_file_name = 'parsed_data_f24_ollama.csv'
     product_file_name = 'parsed_data_f24_ollama_no_regex.csv'
-    product_file_name = 'parsed_data_f24_ollama_no_regex_valid.csv'
+    product_file_name = 'parsed_data_f24_ollama_regex_valid.csv'
+    product_file_name = 'parsed_data_f44_ollama_no_regex_valid.csv'
+    product_file_name = 'parsed_data_f24_ollama_no_regex_valid_v2.csv'
+    product_file_name = 'parsed_data_f24_ollama_no_regex_test.csv'
     # product_file_name = 'parsed_data_f24_ollama_no_regex_repro.csv'
     # product_file_name = 'parsed_data_f24_ollama_no_regex_q8.csv'
     # product_file_name = 'parsed_data_f42_ollama_regex.csv'
@@ -524,8 +529,30 @@ def main(have_gold_labels=True):
     # product_file_name = 'parsed_data_prompt_f10.csv'
     # product_file_name = 'parsed_data_validation_h14_f10_q6.csv'
     product_entries = read_clean_file(product_file_name)
-    if 'validation' in hazard_file_name or 'validation' in product_file_name:
+    if 'validation' in hazard_file_name or 'validation' in product_file_name or 'test' in hazard_file_name or 'test' in product_file_name:
         have_gold_labels = False
+
+    eval_label_set = 'train_valid'
+    # eval_label_set = 'valid'
+    # def read_all_gold_labels(gold_key):
+    #     all_gold_labels_file = f'data/{gold_key}{eval_label_set}_labels.csv'
+    #     with open(all_gold_labels_file) as csvfile:
+    #         reader = csv.DictReader(csvfile, delimiter=',', quotechar='"')
+    #         all_gold_labels = []
+    #         label2id = {}
+    #         for row in reader:
+    #             all_gold_labels.append(row[gold_key])
+    #             label2id[row[gold_key]] = row['id']
+    #     return all_gold_labels, label2id
+    # all_hazard_gold_labels, hazard_all_gold_label2id = read_all_gold_labels('hazard')
+    # print(sorted(hazard_all_gold_label2id.keys()))
+    # print(sorted(all_hazard_gold_labels))
+    # exit(0)
+    # all_product_gold_labels, product_all_gold_label2id = read_all_gold_labels('product')
+
+    label_set = 'train_valid'
+    # label_set = 'valid'
+    label_set = ''
     # hazard_pred, hazard_gold = process_entries(model, hazard_entries, 'hazard-category', 'extracted_hazard')
     # product_pred, product_gold = process_entries(model, product_entries, 'product-category', 'extracted_product')
     # hazard_pred, hazard_gold = process_entries(model, entries, 'hazard-category', 'title')
@@ -533,7 +560,7 @@ def main(have_gold_labels=True):
     # print(f'f1 category: {compute_score(hazard_gold, product_gold, hazard_pred, product_pred)}')
     hazard_exist = False
     use_cache = True
-    use_cache = False
+    # use_cache = False
     # reorder_labels = 'reorder_len_'
     reorder_labels = 'reorder_'
     reorder_labels = 'reorder_simple_'
@@ -551,24 +578,35 @@ def main(have_gold_labels=True):
             for row in reader:
                 hazard_gold.append(row['hazard-gold'])
                 hazard_pred.append(row['hazard-pred'])
-                hazard_pred_text.append(row['hazard-pred-text'])
-                hazard_gold_text.append(row['hazard-gold-text'])
+                # hazard_pred_text.append(row['hazard-pred-text'])
+                # hazard_gold_text.append(row['hazard-gold-text'])
+        hazard_pred_text = hazard_pred
+        hazard_gold_text = hazard_gold
         hazard_pred = np.array(hazard_pred)
         hazard_gold = np.array(hazard_gold)
     else:
         # reorder_labels = ''
         model = SentenceTransformer(hazard_model_name)
-        hazard_pred, hazard_gold, id2label, probs = process_entries(model, hazard_entries, 'hazard', 'extracted_hazard', have_labels=have_gold_labels, use_lemmatization=True, reorder_labels=reorder_labels, predict_cat_first=pred_cat_first, label_set='valid')
-        hazard_pred_text = [id2label[pred] for pred in hazard_pred]
-        hazard_gold_text = [id2label[pred] for pred in hazard_gold]
+        hazard_pred, hazard_gold, id2label, probs, hazard_gold_text, hazard_pred_text = process_entries(model, hazard_entries, 'hazard', 'extracted_hazard', have_labels=have_gold_labels, use_lemmatization=True, reorder_labels=reorder_labels, predict_cat_first=pred_cat_first, label_set=label_set)
+        # hazard_pred_text = [id2label[pred] for pred in hazard_pred]
+        # hazard_gold_text = [id2label[pred] for pred in hazard_gold]
+        # hazard_gold = [hazard_all_gold_label2id[pred] for pred in hazard_gold_text]
+        # hazard_pred = [hazard_all_gold_label2id[pred] for pred in hazard_pred_text]
+        # hazard_gold = np.array(hazard_gold)
+        # hazard_pred = np.array(hazard_pred)
+        hazard_gold = np.array(hazard_gold_text)
+        hazard_pred = np.array(hazard_pred_text)
         with open(f'results/{model_name2}/hazard_{reorder_labels}{pred_cat_first}{hazard_file_name}', 'w', newline='') as csvfile:
-            fieldnames = ['hazard-gold', 'hazard-pred', 'hazard-gold-text', 'hazard-pred-text', 'probs']
+            fieldnames = ['hazard-gold', 'hazard-pred',
+                          # 'hazard-gold-text', 'hazard-pred-text',
+                          'probs']
             writer = csv.DictWriter(csvfile, fieldnames=fieldnames, delimiter=',', quotechar='"')
             writer.writeheader()
             for i in range(len(hazard_pred)):
                 writer.writerow({
                     'hazard-gold': hazard_gold[i], 'hazard-pred': hazard_pred[i],
-                    'hazard-gold-text': hazard_gold_text[i], 'hazard-pred-text': hazard_pred_text[i], 'probs': probs[i]
+                    # 'hazard-gold-text': hazard_gold_text[i], 'hazard-pred-text': hazard_pred_text[i],
+                    'probs': probs[i]
                 })
     product_exist = False
     use_cache = False
@@ -586,30 +624,42 @@ def main(have_gold_labels=True):
             for row in reader:
                 product_gold.append(row['product-gold'])
                 product_pred.append(row['product-pred'])
-                product_pred_text.append(row['product-pred-text'])
-                product_gold_text.append(row['product-gold-text'])
+                # product_pred_text.append(row['product-pred-text'])
+                # product_gold_text.append(row['product-gold-text'])
+        product_pred_text = product_pred
+        product_gold_text = product_gold
         product_pred = np.array(product_pred)
         product_gold = np.array(product_gold)
     else:
         model = SentenceTransformer(product_model_name)
-        product_pred, product_gold, id2label, probs = process_entries(model, product_entries, 'product', 'extracted_product', have_labels=have_gold_labels, use_lemmatization=False, reorder_labels_cat=False, predict_cat_first=pred_cat_first, label_set='valid')
-        product_pred_text = [id2label[pred] for pred in product_pred]
-        product_gold_text = [id2label[pred] for pred in product_gold]
+        product_pred, product_gold, id2label, probs, product_gold_text, product_pred_text = process_entries(model, product_entries, 'product', 'extracted_product', have_labels=have_gold_labels, use_lemmatization=False, reorder_labels_cat=False, predict_cat_first=pred_cat_first, label_set=label_set)
+        # product_pred_text = [id2label[pred] for pred in product_pred]
+        # product_gold_text = [id2label[pred] for pred in product_gold]
+        # product_gold = [product_all_gold_label2id[pred] for pred in product_gold_text]
+        # product_pred = [product_all_gold_label2id[pred] for pred in product_pred_text]
+        # product_gold = np.array(product_gold)
+        # product_pred = np.array(product_pred)
+        product_gold = np.array(product_gold_text)
+        product_pred = np.array(product_pred_text)
         with open(f'results/{model_name2}/product_{pred_cat_first}{product_file_name}', 'w', newline='') as csvfile:
-            fieldnames = ['product-gold', 'product-pred', 'product-gold-text', 'product-pred-text', 'probs']
+            fieldnames = ['product-gold', 'product-pred',
+                          # 'product-gold-text', 'product-pred-text',
+                          'probs']
             writer = csv.DictWriter(csvfile, fieldnames=fieldnames, delimiter=',', quotechar='"')
             writer.writeheader()
             for i in range(len(product_pred)):
                 writer.writerow({
                     'product-gold': product_gold[i], 'product-pred': product_pred[i],
-                    'product-gold-text': product_gold_text[i], 'product-pred-text': product_pred_text[i], 'probs': probs[i]
+                    # 'product-gold-text': product_gold_text[i], 'product-pred-text': product_pred_text[i],
+                    'probs': probs[i]
                 })
 
     submission_file_name = hazard_file_name
     if submission_file_name != product_file_name:
         submission_file_name = submission_file_name.split('.')[0] + '_' + product_file_name
     if not have_gold_labels:
-        submission_file_name = 'validation_' + submission_file_name
+        # submission_file_name = 'validation_' + submission_file_name
+        submission_file_name = 'test_' + submission_file_name
     with open(f'submissions/{model_name2}/{submission_file_name}', 'w', newline='') as csvfile:
         fieldnames = ['hazard-category', 'product-category', 'hazard', 'product']
         # if have_gold_labels:
@@ -617,10 +667,11 @@ def main(have_gold_labels=True):
         writer = csv.DictWriter(csvfile, fieldnames=fieldnames, delimiter=',', quotechar='"')
         writer.writeheader()
         #
-        label_set = 'valid'
         mappings_data_file = 'data/incidents_train.csv'
         if label_set == 'valid':
             mappings_data_file = 'data/incidents_valid.csv'
+        elif label_set == 'train_valid':
+            mappings_data_file = 'data/incidents_train_valid.csv'
         cat2all_hazard, all2cat_hazard = get_category_mappings('hazard', mappings_data_file)
         cat2all_product, all2cat_product = get_category_mappings('product', mappings_data_file)
         for i in range(min(len(product_pred), len(hazard_pred))):
@@ -647,18 +698,26 @@ def main(have_gold_labels=True):
         # label2id_gold = {hazard_gold_text[k]: k for k in range(len(hazard_gold_text))}
         hazard_cats = list(cat2all_hazard.keys())
         product_cats = list(cat2all_product.keys())
-        label2id_hazard_cat = {hazard_cats[k]: k for k in range(len(hazard_cats))}
-        label2id_product_cat = {product_cats[k]: k for k in range(len(product_cats))}
+        # label2id_hazard_cat = {hazard_cats[k]: k for k in range(len(hazard_cats))}
+        # label2id_product_cat = {product_cats[k]: k for k in range(len(product_cats))}
+        # use true labels now
+        mappings_data_file = f'data/incidents_{eval_label_set}.csv'
+        cat2all_hazard_gold, all2cat_hazard_gold = get_category_mappings('hazard', mappings_data_file)
+        cat2all_product_gold, all2cat_product_gold = get_category_mappings('product', mappings_data_file)
         hazard_cats_pred = []
         hazard_cats_gold = []
         product_cats_pred = []
         product_cats_gold = []
         for i in range(len(hazard_pred)):
-            hazard_cats_gold.append(label2id_hazard_cat[all2cat_hazard[hazard_gold_text[i]]])
-            hazard_cats_pred.append(label2id_hazard_cat[all2cat_hazard[hazard_pred_text[i]]])
+            # hazard_cats_gold.append(label2id_hazard_cat[all2cat_hazard_gold[hazard_gold_text[i]]])
+            # hazard_cats_pred.append(label2id_hazard_cat[all2cat_hazard[hazard_pred_text[i]]])
+            hazard_cats_gold.append(all2cat_hazard_gold[hazard_gold_text[i]])
+            hazard_cats_pred.append(all2cat_hazard[hazard_pred_text[i]])
         for i in range(len(product_pred)):
-            product_cats_gold.append(label2id_product_cat[all2cat_product[product_gold_text[i]]])
-            product_cats_pred.append(label2id_product_cat[all2cat_product[product_pred_text[i]]])
+            # product_cats_gold.append(label2id_product_cat[all2cat_product_gold[product_gold_text[i]]])
+            # product_cats_pred.append(label2id_product_cat[all2cat_product[product_pred_text[i]]])
+            product_cats_gold.append(all2cat_product_gold[product_gold_text[i]])
+            product_cats_pred.append(all2cat_product[product_pred_text[i]])
         hazard_cats_gold = np.array(hazard_cats_gold)
         hazard_cats_pred = np.array(hazard_cats_pred)
         product_cats_gold = np.array(product_cats_gold)

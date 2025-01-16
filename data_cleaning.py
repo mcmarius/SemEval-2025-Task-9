@@ -86,6 +86,19 @@ def make_food_prompt(example, title=""):
     prompt = f"Extract the product name(s) mentioned or described in the text below. Also write a few keywords for the product. Do not include any numbers. Respond in the following format and do not respond with anything else: <product text> <keywords>\nText: {title} {example}" # prompt 42 old1
     prompt = f"Extract the product name(s) mentioned or described in the text below. Also write a few keywords for the product. Make sure the keywords refer to the product, not the ingredients. Do not include any numbers. Respond in the following format and do not respond with anything else: <product text> <keywords>\nText: {title} {example}" # prompt 42 old2
     prompt = f"Extract the product name(s) mentioned or described in the text below. Also write a few keywords for the product. Make sure the keywords refer only to the product, not the ingredients. Do not include any numbers. Respond in the following format and do not respond with anything else: <product text> <keywords>\nText: {title} {example}" # prompt 42 old3
+
+    if "Description: " in example or len(example) < 100:
+        max_words = 3  # was 3
+    elif len(example) < 200:
+        max_words = 5  # was 5
+    elif len(example) < 500:
+        max_words = 6  # was 6
+    elif len(example) < 1000:
+        max_words = 7 # was 7
+    else:
+        max_words = 8 # was 8
+    prompt = f"Article about food-incident reports: {title}\n{example}.\n\nYour task is to extract the product(s) as briefly as possible, preserving the words in the article. Do not include any numbers. Respond in the following format and do not respond with anything else:\n<product>. <product description in {max_words} words>.<end of your response>" # prompt 43
+    prompt = f"Article about food-incident reports: {title}\n{example}.\n\nYour task is to extract the product(s) as briefly as possible, preserving the words in the article. Do not include any numbers. Respond in the following format and do not respond with anything else:\n<product>. <product description>.<end of your response>" # prompt 44
     return prompt
 
 def make_hazard_prompt(example, title=""):
@@ -121,14 +134,15 @@ def make_hazard_prompt(example, title=""):
     elif len(example) < 1000:
         max_words = 7 # was 7
     else:
-        max_words = 15 # was 8
+        max_words = 8 # was 8
     # print(f"len: {len(example)}")
     prompt = f"Text about food hazards:\n{title}; {example}.\n\nExtract at most {max_words} specific words that describe the product hazard (almost all for short texts). Copy the words from the given text, no new words. Keep scientific terms. Do not mention the food or product name. Respond like this on one line: <phrase of {max_words} words max> Do not respond with anything else." # prompt 23
     #
     prompt = f"Text about food hazards:\n{title}; {example}.\nExtract the product hazard as detailed as possible. Include scientific terms. Copy the words from the given text, no new words. Do not mention the food or product name. Respond like this on one line: <exact hazard problem detailed in {max_words} words> Do not respond with anything else." # prompt 24
     prompt = f"Article about food-incident reports: {title}\n{example}.\n\nYour task is to extract the problem(s) with the product as briefly as possible, preserving the words in the article. Keep scientific terms. Respond in the following format and do not respond with anything else:\n<problem>. <problem description in {max_words} words>.<end of your response>" # prompt 25
-    prompt = f"Article about food-incident reports: {title}\n{example}.\n\nYour task is to extract the problem(s) with the product as briefly as possible, preserving the words in the article. Keep scientific terms. Respond in the following format and do not respond with anything else:\n<problem>. <problem description in {max_words} words>." # prompt 25-4; 3-5-6-7-15w
     return prompt
+    prompt = f"Article about food-incident reports: {title}\n{example}.\n\nYour task is to extract the problem(s) with the product as briefly as possible, preserving the words in the article. Keep scientific terms. Respond in the following format and do not respond with anything else:\n<problem>. <problem description in {max_words} words>." # prompt 25-4; 3-5-6-7-15w
+    # return prompt
     if "Description: " in example or len(example) < 100:
         max_words = 5  # was 3
     elif len(example) < 200:
@@ -141,6 +155,10 @@ def make_hazard_prompt(example, title=""):
         max_words = 16 # was 8
     prompt = f"Article about food-incident reports: {title}\n{example}.\n\nYour task is to extract the problem(s) with the product as briefly as possible, preserving the words in the article. Keep scientific terms. Respond in the following format and do not respond with anything else:\n<problem>. <problem description in {max_words} words>." # prompt 25-2
     prompt = f"Article about food-incident reports: {title}\n{example}.\n\nYour task is to extract the problem with the product as briefly as possible, preserving the words in the article with all details. Keep scientific terms. Respond in the following format and do not respond with anything else:\n<problem>. <problem description>." # prompt 25-3
+    prompt = f"Article about food-incident reports: {title}\n{example}.\n\nYour task is to extract the problem with the product as briefly as possible, preserving the words in the article with all details. Include a short description. Keep scientific terms. Respond in the following format and do not respond with anything else:\n<problem>. <problem description>." # prompt 25-5
+    # prompt = f"Article about food-incident reports: {title}\n{example}.\n\nYour task is to extract the problem with the product as briefly as possible, preserving the words in the article with all details. Include a short description. Keep scientific terms. Respond in the following format and do not respond with anything else:\n<problem>. <problem description in a few words>." # prompt 25-6
+    # prompt = f"Given this article: {title}\n{example}.\n\nYour task is to extract the problem with the product as briefly as possible, preserving the words in the article with all details. Include a short description. Keep scientific terms. Respond in the following format and do not respond with anything else:\n<problem>. <problem description in a few words>." # prompt 25-7
+    prompt = f"Given this article: {title}\n{example}.\n\nYour task is to extract the problem with the product as briefly as possible, preserving the words in the article with all details. Keep scientific terms. Respond in the following format and do not respond with anything else:\n<problem>. <problem description in 20 words max>" # prompt 25-8
     return prompt
     # prompt = f"Article about food-incident reports: {title}\n{example}.\n\nYour task is to extract the problem(s) with the product as briefly as possible, preserving the words in the article, expanding all abbreviations to their full form. Keep scientific terms and expand abbreviations. Do not respond with one letter abbreviations. Respond in the following format and do not respond with anything else:\n<problem>. <problem description in {max_words} words>.<end of your response>" # prompt 26
     prompt = f"Article about food-incident reports: {title}\n{example}.\n\nYour task is to extract the problem(s) with the product as briefly as possible, preserving the words in the article. Keep scientific terms. Give full names to abbreviations of scientific terms, even if typically used contracted. Do not give notes. Respond in the following format and do not respond with anything else:\n<problem>. <problem description in {max_words} words>" # prompt 27
@@ -241,13 +259,14 @@ def main_eval_loop(file_name, include_product=True, include_hazard=True, add_tit
     cache_responses = {}
     num_cache_hits = 0
     debug_mode = False
+    # debug_mode = True
     should_save = True
     if debug_mode:
         should_save = False
     try:
         for i, row in enumerate(tqdm.tqdm(entries)):
             if debug_mode:
-                if i < 41:
+                if i < 30:
                     continue
             title = row[5]
             # if add_title:
@@ -259,6 +278,7 @@ def main_eval_loop(file_name, include_product=True, include_hazard=True, add_tit
             # continue
             if include_product:
                 clean_text = make_clean_text(row[6], 'product', regex_filter=False)
+                # clean_text = make_clean_text(row[6], 'product', regex_filter=True)
                 if not clean_text:
                     clean_text = title
                 if "Recall Notification: FSIS" in title and "(" not in title:
@@ -286,9 +306,9 @@ def main_eval_loop(file_name, include_product=True, include_hazard=True, add_tit
                 food = food.replace("\n", " ").replace("  ", " ").replace("Uncommon", "").replace("uncommon", "").replace("Common", "").replace("common", "").replace("<", "").replace(">", "")
                 out_row += [food]
             if include_hazard:
-                clean_text = make_clean_text(row[6], 'hazard')
-                if debug_mode:
-                    print(f"made prompt with {clean_text}\n")
+                clean_text = make_clean_text(row[6], 'hazard', regex_filter=True)
+                # if debug_mode:
+                #     print(f"made prompt with {clean_text}\n")
                 # if i > 45:
                 #     break
                 # continue
@@ -337,7 +357,10 @@ def main_eval_loop(file_name, include_product=True, include_hazard=True, add_tit
         # out_file = 'parsed_data_f10.csv'
         # TODO repro f24 w/0 regex filter: need larger context; maybe only try to limit prompt to ~2k chars or smth
         out_file = 'parsed_data_f24_ollama_no_regex_repro.csv'
-        out_file = 'parsed_data_f24_ollama_no_regex_valid.csv'
+        out_file = 'parsed_data_f24_ollama_no_regex_valid_v2.csv'
+        out_file = 'parsed_data_f24_ollama_no_regex_test.csv'
+        # out_file = 'parsed_data_f44_ollama_no_regex_valid.csv'
+        # out_file = 'parsed_data_f24_ollama_regex_valid.csv'
         # out_file = 'parsed_data_f24_ollama_no_regex_q8.csv'
         # out_file = 'parsed_data_f41_ollama_regex_q8.csv'
         # out_file = 'parsed_data_f42_ollama_regex.csv'
@@ -347,7 +370,9 @@ def main_eval_loop(file_name, include_product=True, include_hazard=True, add_tit
         # out_file = 'parsed_data_f25_h18.csv'
         # out_file = 'parsed_data_f24_h17_validation.csv'
         # out_file = 'parsed_data_h29_ollama_regex_more_words.csv'
-        # out_file = 'parsed_data_h25_4_ollama_regex_valid.csv'
+        # out_file = 'parsed_data_h25_ollama_regex_valid_v4.csv'
+        out_file = 'parsed_data_h25_ollama_regex_test.csv'
+        # out_file = 'parsed_data_h25_ollama_no_regex_valid_v2.csv'
         # out_file = 'parsed_data_h25_validation.csv'
         # out_file = 'parsed_data_c2.csv'
         # out_file = 'parsed_data_h14.csv'
@@ -409,7 +434,9 @@ if __name__ == "__main__":
     # main_filter_title('data/incidents_train.csv', include_hazard=False)
     # main_eval_loop('data/incidents_train.csv', include_hazard=False, add_title=False)
     # main_eval_loop('data/incidents_train.csv', include_product=False)
-    main_eval_loop('data/incidents_valid.csv', include_hazard=False)
+    # main_eval_loop('data/incidents_valid.csv', include_hazard=False)
+    # main_eval_loop('data/incidents_test.csv', include_hazard=False)
+    main_eval_loop('data/incidents_test.csv', include_product=False)
     # main_eval_loop('data/incidents_valid.csv', include_product=False)
     # main_eval_loop('data/incidents_train.csv', add_title=False)
     # main_eval_loop('data/incidents_train.csv', include_product=False, include_hazard=False, common_prompt=True)

@@ -134,7 +134,7 @@ def len_sort(elements):
 
 def order_elements(elements):
     # return bubble_sort(elements)
-    progress = tqdm.tqdm(total=len(elements) * round(math.log2(len(elements))))
+    progress = tqdm.tqdm(total=len(elements)) # * round(math.log2(len(elements))))
     return merge_sort(elements, 0, len(elements) - 1, progress)
     # return len_sort(elements)
 
@@ -267,7 +267,7 @@ def write_label_hints(key):
 
 
 if __name__ == "__main__":
-    label_set = 'valid'
+    label_set = 'train_valid'
     key = 'hazard'
     # key = 'product'
     # write_label_hints(key)

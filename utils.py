@@ -13,6 +13,10 @@ def read_file(file_name):
         return entries
 
 
+def read_clean_file(file_name):
+    return read_file(file_name)
+
+
 def fix_file(file_name):
     with open(file_name, newline='') as csvfile:
         reader = csv.DictReader(csvfile, delimiter=',', quotechar='"')
@@ -33,8 +37,40 @@ def fix_file(file_name):
                 writer.writerow(row)
 
 
-def read_clean_file(file_name):
-    return read_file(file_name)
+# merge_files('data/incidents_train.csv', 'data/incidents_valid.csv', 'data/incidents_train_valid.csv')
+def merge_files(file1, file2, new_filename):
+    rows1 = read_file(file1)
+    rows2 = read_file(file2)
+    new_rows = rows1
+    for i, row in enumerate(rows1):
+        new_rows[i][''] = i
+    for i, row in enumerate(rows2):
+        new_row = row
+        new_row[''] = i + len(rows1) + 1
+        new_rows.append(new_row)
+    with open(new_filename, 'w', newline='') as csvfile:
+            writer = csv.DictWriter(csvfile, fieldnames=new_rows[0].keys(), delimiter=',', quotechar='"')
+            writer.writeheader()
+            for row in new_rows:
+                writer.writerow(row)
+
+
+# write_label_file('hazard', 'train_valid')
+# write_label_file('product', 'train_valid')
+def write_label_file(gold_key, label_set=''):
+    entries = read_file('data/incidents_train_valid.csv')
+    if label_set:
+        gold_labels_file = f'data/{gold_key}{label_set}_labels.csv'
+    else:
+        gold_labels_file = f'data/{gold_key}_labels.csv'
+    gold_labels = list(set(entry[gold_key] for entry in entries))
+    label2id = {gold_labels[k]: k for k in range(len(gold_labels))}
+    with open(gold_labels_file, 'w', newline='') as csvfile:
+        fieldnames = [gold_key, 'id']
+        writer = csv.DictWriter(csvfile, fieldnames=fieldnames, delimiter=',', quotechar='"')
+        writer.writeheader()
+        for line in gold_labels:
+            writer.writerow({gold_key: line, 'id': label2id[line]})
 
 
 def process_missing_entries(entries, eval_key):
