@@ -38,6 +38,7 @@ def fix_file(file_name):
 
 
 # merge_files('data/incidents_train.csv', 'data/incidents_valid.csv', 'data/incidents_train_valid.csv')
+# same with test_labeled
 def merge_files(file1, file2, new_filename):
     rows1 = read_file(file1)
     rows2 = read_file(file2)
@@ -57,8 +58,15 @@ def merge_files(file1, file2, new_filename):
 
 # write_label_file('hazard', 'train_valid')
 # write_label_file('product', 'train_valid')
+# same for test
 def write_label_file(gold_key, label_set=''):
-    entries = read_file('data/incidents_train_valid.csv')
+    if label_set == 'test':
+        entries = read_file(f'data/incidents_test_labeled.csv')
+    if label_set == '':
+        entries = read_file(f'data/incidents_train.csv')
+    else:
+        entries = read_file(f'data/incidents_{label_set}.csv')
+    # entries = read_file('data/incidents_train_valid.csv')
     if label_set:
         gold_labels_file = f'data/{gold_key}{label_set}_labels.csv'
     else:

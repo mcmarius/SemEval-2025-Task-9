@@ -75,7 +75,7 @@ def compare_elements(a, b):
     return 1
 
 
-def merge_lists(first_list, second_list):
+def merge_lists(first_list, second_list, progress):
     i = 0
     j = 0
     n = len(first_list)
@@ -95,6 +95,7 @@ def merge_lists(first_list, second_list):
             i += 1
             new_list.append(second_list[j])
             j += 1
+        progress.update(1)
     while i < n:
         new_list.append(first_list[i])
         i += 1
@@ -114,7 +115,7 @@ def merge_sort(elements, left, right, progress=None):
     middle = (left + right) // 2
     left_sorted = merge_sort(elements, left, middle, progress)
     right_sorted = merge_sort(elements, middle + 1, right, progress)
-    return merge_lists(left_sorted, right_sorted)
+    return merge_lists(left_sorted, right_sorted, progress)
 
 
 def bubble_sort(elements):
@@ -134,7 +135,8 @@ def len_sort(elements):
 
 def order_elements(elements):
     # return bubble_sort(elements)
-    progress = tqdm.tqdm(total=len(elements)) # * round(math.log2(len(elements))))
+    # just an estimate
+    progress = tqdm.tqdm(total=len(elements) * 5) # * round(math.log2(len(elements))))
     return merge_sort(elements, 0, len(elements) - 1, progress)
     # return len_sort(elements)
 
@@ -268,6 +270,8 @@ def write_label_hints(key):
 
 if __name__ == "__main__":
     label_set = 'train_valid'
+    label_set = 'train_valid_test'
+    label_set = 'test'
     key = 'hazard'
     # key = 'product'
     # write_label_hints(key)

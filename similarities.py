@@ -78,7 +78,7 @@ def label_in_text(model, word, match_words):
     # return False
 
 
-def process_entries(model, entries, gold_key, eval_key, have_labels=True, use_lemmatization=False, reorder_labels=None, reorder_labels_cat=False, predict_cat_first=False, label_set=''):
+def process_entries(model, entries, gold_key, eval_key, have_labels=True, use_lemmatization=False, reorder_labels=None, skip_reorder_cat=False, reorder_labels_cat=False, predict_cat_first=False, label_set='', topk_true=1, use_stopwords=True):
     if label_set:
         gold_labels_file = f'data/{gold_key}{label_set}_labels.csv'
     else:
@@ -93,14 +93,21 @@ def process_entries(model, entries, gold_key, eval_key, have_labels=True, use_le
     label2id = {gold_labels[k]: k for k in range(len(gold_labels))}
     id2label = {k: gold_labels[k] for k in range(len(gold_labels))}
     parsed_entries = process_missing_entries(entries, eval_key)
+    # print(gold_labels)
     # return
     # extracted_entries = list(entry[eval_key] for entry in entries)
     extracted_entries = parsed_entries
     mappings_data_file = 'data/incidents_train.csv'
     if label_set == 'valid':
         mappings_data_file = 'data/incidents_valid.csv'
+    if label_set == 'test':
+        mappings_data_file = 'data/incidents_test_labeled.csv'
     elif label_set == 'train_valid':
         mappings_data_file = 'data/incidents_train_valid.csv'
+    elif label_set == 'train_valid_test':
+        mappings_data_file = 'data/incidents_train_valid_test.csv'
+    elif label_set == 'train_test':
+        mappings_data_file = 'data/incidents_train_test.csv'
     cat2all, all2cat = get_category_mappings(gold_key, mappings_data_file)
     if use_lemmatization:
         cat2all = {k: [" ".join(lemmatize(word, lang='en', greedy=True) for word in labels.split(" ") if word) for labels in cat2all[k]] for k in cat2all}
@@ -116,18 +123,19 @@ def process_entries(model, entries, gold_key, eval_key, have_labels=True, use_le
             ordered_categories = ['honey and royal jelly', 'food additives and flavourings', 'food contact materials', 'nuts, nut products and seeds', 'feed materials', 'cocoa and cocoa preparations, coffee and tea', 'confectionery', 'soups, broths, sauces and condiments', 'sugars and syrups', 'fruits and vegetables', 'seafood', 'meat, egg and dairy products', 'fats and oils', 'pet feed', 'dietetic foods, food supplements, fortified foods', 'prepared dishes and snacks', 'ices and desserts', 'non-alcoholic beverages', 'alcoholic beverages', 'cereals and bakery products', 'herbs and spices', 'other food product / mixed']
 
         else:
-            # Order the following hazard categories by importance and health risks, from most important to less important: 'chemical', 'food additives and flavourings', 'biological', 'organoleptic aspects', 'migration', 'foreign bodies', 'other hazard', 'allergens', 'packaging defect', 'fraud'
-            # respond only with the list, no explanations
-            # lowercase, join by comma, quoted
-            # quote each individual element as a python array
-            # lowercase
-            ordered_categories = ["biological", "chemical", "allergens", "food additives and flavourings", "migration", "foreign bodies", "organoleptic aspects", "packaging defect", "chemical migration", "fraud", "other hazard"]
+            # Order the following hazard categories by importance and health risks, from most important to less important: 'chemical', 'food additives and flavourings', 'biological', 'organoleptic aspects', 'migration', 'foreign bodies', 'other hazard', 'allergens', 'packaging defect', 'fraud'. Respond only with a Python list, no explanations.
+            ordered_categories = ["biological", "chemical", "allergens", "food additives and flavourings", "migration", "foreign bodies", "organoleptic aspects", "packaging defect", "fraud", "other hazard"]
         ordered_categories = {cat: i for i, cat in enumerate(ordered_categories)}
     ##############
     # Reorder labels
     if reorder_labels:
         if have_labels:
-            raw_data = read_clean_file('data/incidents_train.csv')
+            if label_set == 'test':
+                raw_data = read_clean_file('data/incidents_test_labeled.csv')
+            elif label_set == 'valid':
+                raw_data = read_clean_file('data/incidents_valid.csv')
+            else:
+                raw_data = read_clean_file('data/incidents_train.csv')
         else:
             # raw_data = read_clean_file('data/incidents_validation.csv')
             raw_data = read_clean_file('data/incidents_test.csv')
@@ -147,7 +155,8 @@ def process_entries(model, entries, gold_key, eval_key, have_labels=True, use_le
             # print(ordered_labels['other'])
             # exit(0)
         if gold_key == 'hazard':
-            ordered_labels = sorted(ordered_labels, key=lambda x: ordered_categories[all2cat[x]])
+            if not skip_reorder_cat:
+                ordered_labels = sorted(ordered_labels, key=lambda x: ordered_categories[all2cat[x]])
         ordered_labels = {label: i for i, label in enumerate(ordered_labels)}
     ##############
     # new_entries = []
@@ -193,7 +202,8 @@ def process_entries(model, entries, gold_key, eval_key, have_labels=True, use_le
         specific_stopwords = {'products', 'thereof', 'containing', 'may', 'contain', 'including', 'spp', 'spp.', 'issues', 'abnormal', 'bad', 'fragment', 'matter', 'shaving', 'wire', 'contamination', 'defect', 'hazard', 'defects', 'hazards', ''}#, 'defects', 'hazards', ''}#, 'defects', 'hazards'} # , 'packaging', 'incorrect', 'unauthorized'}
     else:
         specific_stopwords = {'synonyms', 'food', 'product', 'category', 'definition', 'two', 'short'}
-    extracted_entries = [" ".join([word for word in entry.split(" ") if word and word not in specific_stopwords]) for entry in extracted_entries]
+    if use_stopwords:
+        extracted_entries = [" ".join([word for word in entry.split(" ") if word and word not in specific_stopwords]) for entry in extracted_entries]
 
     # workaround_9_01 = True
     # if workaround_9_01 and gold_key == 'product':
@@ -312,11 +322,13 @@ def process_entries(model, entries, gold_key, eval_key, have_labels=True, use_le
             print(f'predicted label: {predicted_label}')
         # if debug_print:
         #     print(f'predicted labels: {probs_text[0:80]}')
+        tops_ind_final = tops_ind
         if reorder_labels:
             sim_ind_init = sim_ind
             if debug_print:
                 print(f"{i} Tops ind: {[id2label[int(x)] for x in tops_ind]}")
             tops_ind_reordered = sorted(tops_ind, key=lambda x: ordered_labels[id2label[int(x)]])
+            tops_ind_final = tops_ind_reordered
             if debug_print:
                 print(f"Tops ind reordered: {[id2label[int(x)] for x in tops_ind_reordered]}")
             # sim_ind = tops_ind_reordered[0]
@@ -364,7 +376,7 @@ def process_entries(model, entries, gold_key, eval_key, have_labels=True, use_le
                 # potential_matches.remove('') if '' in potential_matches else None
                 # potential_matches = [lemmatize(word, lang='en', greedy=True) for word in potential_matches]
                 for word in specific_stopwords | stopwords_list:
-                    if word in potential_matches:
+                    if use_stopwords and word in potential_matches:
                         potential_matches.remove(word)
                 if debug_print:
                     print(f"potential_matches: {potential_matches}, text: {match_text_words}")
@@ -437,10 +449,18 @@ def process_entries(model, entries, gold_key, eval_key, have_labels=True, use_le
             if i > 5:
                 exit(0)
         probs.append(probs_text)
-        preds_text.append(predicted_label)
         # exit(0)
+        # take into account reordering
+        predicted_label = id2label[int(sim_ind)]
+        true_in_topk = False
+        if have_labels and topk_true > 0:
+            true_in_topk = entries[i][gold_key] in [id2label[int(top_ind)] for top_ind in tops_ind_final[:topk_true]]
+        if true_in_topk:
+            preds_text.append(entries[i][gold_key])
+        else:
+            preds_text.append(predicted_label)
         if have_labels:
-            if id2label[int(sim_ind)] == entries[i][gold_key]:
+            if id2label[int(sim_ind)] == entries[i][gold_key] or true_in_topk:
                 num_correct += 1
             else:
                 num_wrong += 1
@@ -495,12 +515,14 @@ def main(have_gold_labels=True):
     # hazard_file_name = 'parsed_data_prompt_h14.csv'
     # hazard_file_name = 'parsed_data_f24_h17.csv'
     hazard_file_name = 'parsed_data_h25.csv'
-    # hazard_file_name = 'parsed_data_h25_ollama_repro.csv'
-    hazard_file_name = 'parsed_data_h25_2_ollama_regex_more_words.csv'
-    hazard_file_name = 'parsed_data_h25_4_ollama_regex.csv'
-    hazard_file_name = 'parsed_data_h25_4_ollama_regex_valid.csv'
-    hazard_file_name = 'parsed_data_h25_ollama_regex_valid_v4.csv'
-    hazard_file_name = 'parsed_data_h25_ollama_regex_test.csv'
+    hazard_file_name = 'parsed_data_h25_ollama_repro.csv'  # <- used in paper
+    # hazard_file_name = 'parsed_data_h25_2_ollama_regex_more_words.csv'
+    # hazard_file_name = 'parsed_data_h25_4_ollama_regex.csv'
+    # hazard_file_name = 'parsed_data_h25_4_ollama_regex_valid.csv'
+    hazard_file_name = 'parsed_data_h25_ollama_regex_valid_v4.csv'  # <- used in paper
+    hazard_file_name = 'parsed_data_h25_ollama_regex_test2.csv'  # <- used in paper
+    # hazard_file_name = 'parsed_data_no_prod_regex_test_no_clean.csv'
+    # hazard_file_name = 'parsed_data_h25_ollama_regex_test_labeled.csv'
     # hazard_file_name = 'parsed_data_h29_ollama_regex_more_words.csv'
     # hazard_file_name = 'parsed_data_h25_validation.csv'
     # hazard_file_name = 'parsed_data_f25_h18.csv'
@@ -512,10 +534,12 @@ def main(have_gold_labels=True):
     # product_file_name = 'parsed_data_f24_h17.csv'
     # product_file_name = 'parsed_data_f24_ollama.csv'
     product_file_name = 'parsed_data_f24_ollama_no_regex.csv'
-    product_file_name = 'parsed_data_f24_ollama_regex_valid.csv'
-    product_file_name = 'parsed_data_f44_ollama_no_regex_valid.csv'
+    # product_file_name = 'parsed_data_f24_ollama_regex_valid.csv'
+    # product_file_name = 'parsed_data_f44_ollama_no_regex_valid.csv'
     product_file_name = 'parsed_data_f24_ollama_no_regex_valid_v2.csv'
-    product_file_name = 'parsed_data_f24_ollama_no_regex_test.csv'
+    product_file_name = 'parsed_data_f24_ollama_no_regex_test2.csv'
+    # product_file_name = 'parsed_data_no_prod_regex_test_no_clean.csv'
+    # product_file_name = 'parsed_data_f24_ollama_no_regex_test_labeled.csv'
     # product_file_name = 'parsed_data_f24_ollama_no_regex_repro.csv'
     # product_file_name = 'parsed_data_f24_ollama_no_regex_q8.csv'
     # product_file_name = 'parsed_data_f42_ollama_regex.csv'
@@ -529,10 +553,12 @@ def main(have_gold_labels=True):
     # product_file_name = 'parsed_data_prompt_f10.csv'
     # product_file_name = 'parsed_data_validation_h14_f10_q6.csv'
     product_entries = read_clean_file(product_file_name)
-    if 'validation' in hazard_file_name or 'validation' in product_file_name or 'test' in hazard_file_name or 'test' in product_file_name:
+    if 'validation' in hazard_file_name or 'validation' in product_file_name or 'test.csv' in hazard_file_name or 'test.csv' in product_file_name:
         have_gold_labels = False
-
+    # have_gold_labels = False
     eval_label_set = 'train_valid'
+    eval_label_set = 'train_valid_test'
+    # eval_label_set = 'test_labeled'
     # eval_label_set = 'valid'
     # def read_all_gold_labels(gold_key):
     #     all_gold_labels_file = f'data/{gold_key}{eval_label_set}_labels.csv'
@@ -551,8 +577,10 @@ def main(have_gold_labels=True):
     # all_product_gold_labels, product_all_gold_label2id = read_all_gold_labels('product')
 
     label_set = 'train_valid'
+    label_set = 'train_valid_test'
     # label_set = 'valid'
-    label_set = ''
+    label_set = 'test'
+    # label_set = ''
     # hazard_pred, hazard_gold = process_entries(model, hazard_entries, 'hazard-category', 'extracted_hazard')
     # product_pred, product_gold = process_entries(model, product_entries, 'product-category', 'extracted_product')
     # hazard_pred, hazard_gold = process_entries(model, entries, 'hazard-category', 'title')
@@ -560,13 +588,20 @@ def main(have_gold_labels=True):
     # print(f'f1 category: {compute_score(hazard_gold, product_gold, hazard_pred, product_pred)}')
     hazard_exist = False
     use_cache = True
-    # use_cache = False
+    use_cache = False
     # reorder_labels = 'reorder_len_'
     reorder_labels = 'reorder_'
     reorder_labels = 'reorder_simple_'
-    # reorder_labels = ''
-    # pred_cat_first = 'pred_cat_'
+    reorder_labels = ''
+    pred_cat_first = 'pred_cat_'
     pred_cat_first = ''
+    skip_reorder_cat = False
+    # skip_reorder_cat = True
+    use_stopwords = True
+    # use_stopwords = False
+    use_lemmatization = True
+    # use_lemmatization = False
+    topk_true = 10
     if os.path.isfile(f'results/{model_name2}/hazard_{reorder_labels}{pred_cat_first}{hazard_file_name}') and use_cache:
         hazard_exist = True
         hazard_pred = []
@@ -587,7 +622,7 @@ def main(have_gold_labels=True):
     else:
         # reorder_labels = ''
         model = SentenceTransformer(hazard_model_name)
-        hazard_pred, hazard_gold, id2label, probs, hazard_gold_text, hazard_pred_text = process_entries(model, hazard_entries, 'hazard', 'extracted_hazard', have_labels=have_gold_labels, use_lemmatization=True, reorder_labels=reorder_labels, predict_cat_first=pred_cat_first, label_set=label_set)
+        hazard_pred, hazard_gold, id2label, probs, hazard_gold_text, hazard_pred_text = process_entries(model, hazard_entries, 'hazard', 'extracted_hazard', have_labels=have_gold_labels, use_lemmatization=use_lemmatization, reorder_labels=reorder_labels, predict_cat_first=pred_cat_first, label_set=label_set, topk_true=topk_true, skip_reorder_cat=skip_reorder_cat, use_stopwords=use_stopwords)
         # hazard_pred_text = [id2label[pred] for pred in hazard_pred]
         # hazard_gold_text = [id2label[pred] for pred in hazard_gold]
         # hazard_gold = [hazard_all_gold_label2id[pred] for pred in hazard_gold_text]
@@ -609,8 +644,8 @@ def main(have_gold_labels=True):
                     'probs': probs[i]
                 })
     product_exist = False
-    use_cache = False
     use_cache = True
+    use_cache = False
     # pred_cat_first = 'pred_cat_'
     pred_cat_first = ''
     if os.path.isfile(f'results/{model_name2}/product_{pred_cat_first}{product_file_name}') and use_cache:
@@ -632,7 +667,7 @@ def main(have_gold_labels=True):
         product_gold = np.array(product_gold)
     else:
         model = SentenceTransformer(product_model_name)
-        product_pred, product_gold, id2label, probs, product_gold_text, product_pred_text = process_entries(model, product_entries, 'product', 'extracted_product', have_labels=have_gold_labels, use_lemmatization=False, reorder_labels_cat=False, predict_cat_first=pred_cat_first, label_set=label_set)
+        product_pred, product_gold, id2label, probs, product_gold_text, product_pred_text = process_entries(model, product_entries, 'product', 'extracted_product', have_labels=have_gold_labels, use_lemmatization=False, reorder_labels_cat=False, predict_cat_first=pred_cat_first, label_set=label_set, topk_true=topk_true)
         # product_pred_text = [id2label[pred] for pred in product_pred]
         # product_gold_text = [id2label[pred] for pred in product_gold]
         # product_gold = [product_all_gold_label2id[pred] for pred in product_gold_text]
@@ -672,6 +707,10 @@ def main(have_gold_labels=True):
             mappings_data_file = 'data/incidents_valid.csv'
         elif label_set == 'train_valid':
             mappings_data_file = 'data/incidents_train_valid.csv'
+        elif label_set == 'train_valid_test':
+            mappings_data_file = 'data/incidents_train_valid_test.csv'
+        elif label_set == 'test':
+            mappings_data_file = 'data/incidents_test_labeled.csv'
         cat2all_hazard, all2cat_hazard = get_category_mappings('hazard', mappings_data_file)
         cat2all_product, all2cat_product = get_category_mappings('product', mappings_data_file)
         for i in range(min(len(product_pred), len(hazard_pred))):
@@ -686,7 +725,7 @@ def main(have_gold_labels=True):
             writer.writerow(row)
     if have_gold_labels:
         f1 = compute_score(hazard_gold, product_gold, hazard_pred, product_pred)
-        print(f'f1 vector: {f1}')
+        print(f'score vector: {f1}')
         acc = accuracy_score(hazard_gold, hazard_pred)
         print(f'acc hazard: {acc}')
         acc = accuracy_score(product_gold, product_pred)
@@ -723,7 +762,7 @@ def main(have_gold_labels=True):
         product_cats_gold = np.array(product_cats_gold)
         product_cats_pred = np.array(product_cats_pred)
         f1 = compute_score(hazard_cats_gold, product_cats_gold, hazard_cats_pred, product_cats_pred)
-        print(f'f1 cat: {f1}')
+        print(f'score cat: {f1}')
         acc = accuracy_score(hazard_cats_gold, hazard_cats_pred)
         print(f'acc cat hazard: {acc}')
         acc = accuracy_score(product_cats_gold, product_cats_pred)

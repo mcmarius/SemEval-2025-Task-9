@@ -22,9 +22,11 @@ def wrong_examples(in_file):
     # nr = 0
     exclude_other = 'exclude_other'
     for i, row in enumerate(results):
-        if row[f'{key}-gold-text'] != row[f'{key}-pred-text']:
+        # if row[f'{key}-gold-text'] != row[f'{key}-pred-text']:
+        if row[f'{key}-gold'] != row[f'{key}-pred']:
             if exclude_other:
-                if 'other' in row[f'{key}-gold-text'] and 'other' not in row[f'{key}-pred-text']:
+                # if 'other' in row[f'{key}-gold-text'] and 'other' not in row[f'{key}-pred-text']:
+                if 'other' in row[f'{key}-gold'] and 'other' not in row[f'{key}-pred']:
                     continue
             new_rows.append(row)
             new_rows[-1]['id'] = i
@@ -69,6 +71,10 @@ if __name__ == "__main__":
     file_str = 'hazard_reorder_simple_parsed_data_h29_ollama_regex.csv'
     file_str = 'hazard_reorder_simple_parsed_data_h25_2_ollama_regex_more_words.csv'
     file_str = 'hazard_reorder_simple_parsed_data_h25_3_ollama_regex.csv'
+    file_str = 'hazard_reorder_simple_parsed_data_h25_ollama_regex_test2.csv'
+    file_str = 'hazard_parsed_data_h25_ollama_regex_test2.csv'
+    file_str = 'product_parsed_data_f24_ollama_no_regex_test2.csv'
+    # file_str = 'product_parsed_data_f36.csv'
     # file_str = 'product_parsed_data_f36.csv'
     # file_str = 'product_parsed_data_f24_ollama_no_regex_repro.csv'
     # file_str = 'product_parsed_data_f38_ollama_regex.csv'
