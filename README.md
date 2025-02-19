@@ -5,6 +5,7 @@
 Dependencies:
 - requests
 - tqdm
+- LLM server
 
 Start a LLM server, e.g.
 ```sh
@@ -46,6 +47,7 @@ Dependencies:
 - editdistance
 - requests
 - tqdm
+- LLM server
 
 Update the `label_set` in the `main` function in `order_labels.py` (optionally also update `key`). If updating the destination file, this also needs to be updated in the similarity script.
 
