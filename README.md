@@ -3,9 +3,9 @@
 ### Data cleaning
 
 Dependencies:
-- requests
-- tqdm
-- LLM server
+- requests==2.32.3
+- tqdm==4.67.0
+- LLM server (ollama 0.3.13)
 
 Start a LLM server, e.g.
 ```sh
@@ -44,10 +44,10 @@ The string `train_valid` (in the example above) is used as "label_set" in the co
 ### Order labels
 
 Dependencies:
-- editdistance
-- requests
-- tqdm
-- LLM server
+- editdistance==0.8.1
+- requests==2.32.3
+- tqdm==4.67.0
+- LLM server (ollama 0.3.13)
 
 Update the `label_set` in the `main` function in `order_labels.py` (optionally also update `key`). If updating the destination file, this also needs to be updated in the similarity script.
 
@@ -59,13 +59,13 @@ python order_labels.py
 ### Run similarity classification script
 
 Dependencies:
-- numpy
-- sentence_transformers
-- torch
-- tqdm
-- nltk
-- sklearn
-- simplemma
+- numpy==1.26.4
+- sentence-transformers==3.3.1
+- torch==2.5.1
+- tqdm==4.67.0
+- nltk==3.9.1
+- scikit-learn==1.5.2
+- simplemma==1.1.2
 
 Update `hazard_file_name` and `product_file_name` with the files resulted from data cleaning.
 
